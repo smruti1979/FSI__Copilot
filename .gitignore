@@ -1,0 +1,14 @@
+# Virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Synthetic data outputs (CSVs)
+output/
+
+# reports
+reports/
+
+# OS specific files
+.DS_Store
+Thumbs.db

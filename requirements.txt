@@ -1,0 +1,10 @@
+streamlit
+snowflake-snowpark-python
+snowflake-cli
+sdv
+faker
+pandas
+requests
+numpy
+snowflake-connector-python
+mcp-server-fetch

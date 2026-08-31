@@ -1,0 +1,296 @@
+name: fsi_risk_fraud_copilot
+description: >
+  Semantic model for the Risk, Fraud & Regulatory Intelligence Copilot.
+  Lets a business or compliance user ask natural language questions about
+  synthetic banking accounts and transactions to surface fraud, AML, and
+  risk signals with governed, explainable SQL.
+
+tables:
+  - name: ACCOUNTS
+    description: >
+      One row per bank/NBFC account, including customer attributes
+      (name, occupation, country, risk rating) and account details
+      (type, open date, balance).
+    base_table:
+      database: FSI_COPILOT
+      schema: RAW
+      table: ACCOUNTS
+    primary_key:
+      columns:
+        - account_id
+    dimensions:
+      - name: account_id
+        expr: account_id
+        data_type: varchar
+        description: Unique identifier for the account.
+        unique: true
+      - name: customer_name
+        expr: customer_name
+        data_type: varchar
+        description: Name of the customer who owns the account.
+      - name: occupation
+        expr: occupation
+        data_type: varchar
+        description: Customer's stated occupation.
+      - name: country
+        expr: country
+        data_type: varchar
+        description: Country associated with the account holder.
+        synonyms:
+          - nation
+          - region
+      - name: risk_rating
+        expr: risk_rating
+        data_type: varchar
+        description: Bank-assigned customer risk rating.
+        sample_values:
+          - "LOW"
+          - "MEDIUM"
+          - "HIGH"
+        synonyms:
+          - risk level
+          - risk category
+      - name: account_type
+        expr: account_type
+        data_type: varchar
+        description: Type of account.
+        sample_values:
+          - "SAVINGS"
+          - "CURRENT"
+          - "NBFC_LOAN"
+          - "CREDIT_CARD"
+      - name: customer_id
+        expr: customer_id
+        data_type: varchar
+        description: Identifier for the underlying customer.
+    time_dimensions:
+      - name: open_date
+        expr: open_date
+        data_type: date
+        description: Date the account was opened.
+    measures:
+      - name: balance
+        expr: balance
+        data_type: float
+        default_aggregation: sum
+        description: Current account balance.
+      - name: account_count
+        expr: account_id
+        data_type: number
+        default_aggregation: count
+        description: Count of accounts.
+
+  - name: TRANSACTIONS
+    description: >
+      One row per financial transaction. Includes a fraud_pattern label
+      identifying synthetic ground-truth fraud/AML scenarios
+      (STRUCTURING, LAYERING, VELOCITY_SPIKE), used to validate detection.
+    base_table:
+      database: FSI_COPILOT
+      schema: RAW
+      table: TRANSACTIONS
+    primary_key:
+      columns:
+        - transaction_id
+    dimensions:
+      - name: transaction_id
+        expr: transaction_id
+        data_type: varchar
+        description: Unique identifier for the transaction.
+        unique: true
+      - name: account_id
+        expr: account_id
+        data_type: varchar
+        description: Account that initiated the transaction.
+      - name: counterparty_account_id
+        expr: counterparty_account_id
+        data_type: varchar
+        description: Account on the other side of the transaction.
+      - name: currency
+        expr: currency
+        data_type: varchar
+        description: Currency of the transaction.
+      - name: transaction_type
+        expr: transaction_type
+        data_type: varchar
+        description: Type of transaction.
+        sample_values:
+          - "WIRE"
+          - "ACH_TRANSFER"
+          - "CASH_DEPOSIT"
+          - "CASH_WITHDRAWAL"
+          - "CARD_PAYMENT"
+          - "UPI"
+      - name: channel
+        expr: channel
+        data_type: varchar
+        description: Channel used for the transaction.
+        sample_values:
+          - "MOBILE"
+          - "BRANCH"
+          - "ATM"
+          - "ONLINE"
+          - "AGENT"
+      - name: country
+        expr: country
+        data_type: varchar
+        description: Country where the transaction occurred.
+      - name: fraud_pattern
+        expr: fraud_pattern
+        data_type: varchar
+        description: >
+          Label identifying a known fraud/AML pattern this transaction
+          belongs to: STRUCTURING, LAYERING, VELOCITY_SPIKE, or null for
+          a normal transaction.
+        sample_values:
+          - "STRUCTURING"
+          - "LAYERING"
+          - "VELOCITY_SPIKE"
+        synonyms:
+          - fraud type
+          - fraud label
+          - suspicious pattern
+          - aml flag
+    time_dimensions:
+      - name: transaction_timestamp
+        expr: timestamp
+        data_type: timestamp_ntz
+        description: Date and time the transaction occurred.
+        synonyms:
+          - transaction date
+          - transaction time
+    measures:
+      - name: amount
+        expr: amount
+        data_type: float
+        default_aggregation: sum
+        description: Transaction amount.
+      - name: transaction_count
+        expr: transaction_id
+        data_type: number
+        default_aggregation: count
+        description: Count of transactions.
+
+  - name: FRAUD_SIGNALS
+    description: >
+      Unified output of REAL fraud/AML detection logic (structuring,
+      layering, velocity-spike rules) -- not a label lookup. Validated
+      against ground truth with 100% precision and recall. Use this table
+      to answer any question about suspicious activity, flagged accounts,
+      or detected fraud/AML patterns, including vague questions like
+      "which customers look suspicious."
+    base_table:
+      database: FSI_COPILOT
+      schema: RAW
+      table: FRAUD_SIGNALS
+    primary_key:
+      columns:
+        - transaction_id
+    dimensions:
+      - name: transaction_id
+        expr: transaction_id
+        data_type: varchar
+        description: The transaction this signal was raised on.
+        unique: true
+      - name: account_id
+        expr: account_id
+        data_type: varchar
+        description: Account the flagged transaction belongs to.
+      - name: rule_name
+        expr: rule_name
+        data_type: varchar
+        description: Which detection rule flagged this transaction.
+        sample_values:
+          - "STRUCTURING"
+          - "VELOCITY_SPIKE"
+          - "LAYERING"
+        synonyms:
+          - fraud type
+          - signal type
+          - detected pattern
+          - suspicious pattern
+      - name: evidence
+        expr: evidence
+        data_type: varchar
+        description: Human-readable explanation of why this transaction was flagged.
+    time_dimensions:
+      - name: transaction_timestamp
+        expr: transaction_timestamp
+        data_type: timestamp_ntz
+        description: When the flagged transaction occurred.
+    measures:
+      - name: amount
+        expr: amount
+        data_type: float
+        default_aggregation: sum
+        description: Amount of the flagged transaction.
+      - name: signal_count
+        expr: transaction_id
+        data_type: number
+        default_aggregation: count
+        description: Count of flagged transactions/signals.
+
+relationships:
+  - name: transactions_to_accounts
+    left_table: TRANSACTIONS
+    right_table: ACCOUNTS
+    relationship_columns:
+      - left_column: account_id
+        right_column: account_id
+    join_type: left_outer
+    relationship_type: many_to_one
+
+  - name: fraud_signals_to_accounts
+    left_table: FRAUD_SIGNALS
+    right_table: ACCOUNTS
+    relationship_columns:
+      - left_column: account_id
+        right_column: account_id
+    join_type: left_outer
+    relationship_type: many_to_one
+
+verified_queries:
+  - name: structuring_transactions_last_30_days
+    question: Show me all structuring transactions in the last 30 days
+    sql: >
+      SELECT transaction_id, account_id, amount, transaction_timestamp
+      FROM transactions
+      WHERE fraud_pattern = 'STRUCTURING'
+        AND transaction_timestamp >= DATEADD(day, -30, CURRENT_TIMESTAMP())
+      ORDER BY transaction_timestamp DESC
+
+  - name: high_risk_accounts_with_large_transactions
+    question: Which high risk accounts had transactions over 9000 dollars
+    sql: >
+      SELECT a.account_id, a.customer_name, a.risk_rating, t.amount, t.transaction_timestamp
+      FROM transactions t
+      JOIN accounts a ON t.account_id = a.account_id
+      WHERE a.risk_rating = 'HIGH' AND t.amount > 9000
+      ORDER BY t.transaction_timestamp DESC
+
+  - name: total_flagged_amount_by_pattern
+    question: What is the total transaction amount for each fraud pattern
+    sql: >
+      SELECT fraud_pattern, SUM(amount) AS total_amount, COUNT(*) AS txn_count
+      FROM transactions
+      WHERE fraud_pattern IS NOT NULL
+      GROUP BY fraud_pattern
+      ORDER BY total_amount DESC
+
+  - name: layering_chains_by_account
+    question: Show me accounts involved in layering transaction chains
+    sql: >
+      SELECT DISTINCT account_id, counterparty_account_id, amount, transaction_timestamp
+      FROM transactions
+      WHERE fraud_pattern = 'LAYERING'
+      ORDER BY transaction_timestamp
+
+  - name: most_suspicious_customers
+    question: Which customers look suspicious
+    sql: >
+      SELECT a.account_id, a.customer_name, a.risk_rating, fs.rule_name,
+             COUNT(*) AS signal_count, SUM(fs.amount) AS total_flagged_amount
+      FROM fraud_signals fs
+      JOIN accounts a ON fs.account_id = a.account_id
+      GROUP BY a.account_id, a.customer_name, a.risk_rating, fs.rule_name
+      ORDER BY total_flagged_amount DESC
