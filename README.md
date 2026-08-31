@@ -1,4 +1,5 @@
 # Risk, Fraud & Regulatory Intelligence Copilot
+<img width="1408" height="768" alt="image_32fe6999" src="https://github.com/user-attachments/assets/6b05716b-d1e9-4e82-8fca-f9644a50827e" />
 
 A Snowflake Cortex-based copilot for banking/NBFC compliance teams. Combines
 synthetic transaction data, governed natural-language querying (Cortex
@@ -288,6 +289,6 @@ re-discovered the hard way:
 
 ---
 
-## License
+## Demonstration
 
-Add your license of choice here before publishing.
+[![Watch the video](https://img.youtube.com/vi/ZcjM80FswPM/maxresdefault.jpg)](https://youtu.be/ZcjM80FswPM)
